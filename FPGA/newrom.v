@@ -20,7 +20,7 @@ module rom (
 	initial 	// Read the memory contents in the file
 				//dual_port_rom_init.txt.
 	begin
-		$readmemh("d:/Storm/test.txt", rom);
+		$readmemh("./test.txt", rom);
 	end
 	
 	always @ (posedge clk)

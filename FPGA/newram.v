@@ -10,7 +10,7 @@ module single_clock_wr_ram(
 	initial 	// Read the memory contents in the file
 				//dual_port_rom_init.txt.
 	begin
-		$readmemh("d:/Storm/fillmem.txt", mem);
+		$readmemh("./fillmem.txt", mem);
 	end
 
 	
