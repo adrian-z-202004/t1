@@ -1,5 +1,6 @@
 
 `timescale 10ns/1ns
+
 // ----------------------------------------------------------------------------
 // --- top --------------------------------------------------------------------
 // ----------------------------------------------------------------------------
@@ -18,28 +19,16 @@ module top (
 	output 		hw_DIG_out2,
 
 	// ram
-	// output			ram_clk,	// Clock
 	output			hw_sdClk_o,
-	// output			cke,	// Clock Enable
 	output			hw_sdCke_o,
-	// output			BA0,	// Bank select
-	// output			BA1,	// Bank select
 	output	[1:0]	hw_sdBs_o,
-	// output	[11:0]	addr,	// Address
 	output 	[11:0]	hw_sdAddr_o,
-	// output			n_cs,	// Chip Select
 	output			hw_sdCe_bo,
-	// output			n_RAS,
 	output			hw_sdRas_bo,
-	// output			n_CAS,
 	output			hw_sdCas_bo,
-	// output			n_WE,	// Write Enable
 	output			hw_sdWe_bo,
-	// output			UDQM,
 	output			hw_sdDqmh_o,
-	// output			LDQM,
 	output			hw_sdDqml_o,
-	// inout	[15:0]	DQ,
 	inout	[15:0]	hw_sdData_io,
 	
 	// output [6:0] hw_SEG_out,
@@ -47,9 +36,6 @@ module top (
 	output hw_DIG_out0,
 	// output hw_DIG_out1,
 	
-	// input	[15:0]	test_word,
-	// input	[ 7:0]	test_byte,
-
 	output			hw_serial_out_ds1302, 		// SCLK
 	inout			hw_serial_io_ds1302, 		// DATA
 	output			hw_chip_enable_out_ds1302, 	// CE
@@ -59,25 +45,19 @@ module top (
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 
+	// ds 1302
 	wire	ds1302_SCLK;
 	wire	ds1302_DATA;
 	wire	ds1302_CE;
-	
-	// reg ds_ce = 1'b0;
-
-	reg ds_trigger; 
-	
-	assign ds1302_CE = ds_trigger;
+	reg 	ds_trigger; 
+	reg		ds_clk;
+	reg		ds_clk_out;
 	
 	assign	hw_serial_out_ds1302		= ds1302_SCLK;
-	// inout port
 	assign	hw_serial_io_ds1302			= ds1302_DATA;
 	assign	hw_chip_enable_out_ds1302	= ds1302_CE;
-	
-	reg	ds_clk;
-	reg	ds_clk_out;
-	
-	assign ds1302_SCLK = ds_clk_out;
+	assign 	ds1302_CE 					= ds_trigger;
+	assign 	ds1302_SCLK 				= ds_clk_out;
 	
 	// ram
 	wire 		ram_clk	; // ,	// Clock
@@ -124,14 +104,6 @@ module top (
 	wire pll_notphased;
 	wire locked;
 	
-	wire [15:0] w_test_word;
-	
-	// assign hw_DIG_out[0]	= pll;
-	// assign hw_DIG_out[1]	= locked;
-	// assign hw_DIG_out1	= locked;
-	
-	// reg [7:0] tosend 	= 'h01;
-	
 	reg [7:0] led_reg = 8'b1000_0001;
 	
 	assign hw_LEDs	= led_reg;
@@ -140,8 +112,6 @@ module top (
 	// wire w_hw_KEY1;
 	// wire w_hw_KEY2;
 	// wire w_hw_KEY3;
-
-	// assign hw_LEDs = count1;
 
 // ----------------------------------------------------------------------------
 // `define MODEL_TECH
@@ -298,30 +268,19 @@ module top (
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 
-// `define IDLE reg [1:0] a;
-
-	// always @(posedge clock or posedge reset) begin
-		// if (reset) STATE <= `IDLE;
-		// else begin
-		// end
-	// end
-
+	reg 		ds_Rw;
 	reg	[11:0]	ds_counter;
-
 	reg	[4:0]	ds_bitcount;
 	reg	[3:0]	ds_bitcount2;
-	reg ds_old; 
-	wire ds_databit; 
-	
 	reg [7:0] ds_data_byte = 8'b_1000_0001;
+	reg 		ds_old; 
+	wire 		ds_databit; 
 	
 	localparam	BITS	= 8'd8 * 2;
 	
-	assign hw_DIG_out0 = ds_trigger;
-	
-	assign ds_databit = (ds_bitcount < 4'h8) ? ds_data_byte[ds_bitcount] : 8'hz;
-	
-	assign ds1302_DATA = ds_databit;
+	assign hw_DIG_out0 	= ds_trigger;
+	assign ds_databit 	= (ds_bitcount < 4'h8) ? ds_data_byte[ds_bitcount] : 8'hz;
+	assign ds1302_DATA 	= ds_databit;
 	
 	always@(posedge clock or posedge reset) begin
 		if(reset) begin
@@ -332,7 +291,6 @@ module top (
 			ds_bitcount2	= 1'b0;
 			ds_old			= 1'b0;
 			ds_trigger		= 1'b0;
-			// ds_databit		= 1'b0;
 		end
 		else begin
 			ds_old <= ds_clk;
@@ -352,9 +310,7 @@ module top (
 			
 			// detect pos. edge
 			if(ds_clk && ~ds_old) begin
-			
 				ds_clk_out	= ~ds_clk_out;
-			
 			end
 			
 			if(ds_bitcount2 == 4) begin
@@ -365,7 +321,6 @@ module top (
 			if(ds_counter == (((1000 / 40)/2)) ) begin
 				ds_counter 	= 12'h0;
 				ds_clk		= ~ds_clk;
-				
 			
 				if(ds_bitcount == BITS) begin
 					ds_bitcount2 = ds_bitcount2 +1;
@@ -376,10 +331,9 @@ module top (
 			else
 				ds_counter	= ds_counter + 1'd1;
 		end
-		// ds_clk
 	end
-	
 
+	// Reset
 	assign reset	= !locked;
 
 	// CL3 : 143 Mhz !!!
@@ -392,44 +346,17 @@ module top (
 		.locked(locked)
 	);
 
-	wire clk_10MHz;
+	wire 			ram_init_ready;
+	wire 			cpu_we_n;
 
-	// assign 	hw_DIG_out2	= clk_10MHz;
+	wire 	[11:0] 	addr_init;
+	wire 	[11:0] 	addr_rw;
+	wire 	[15:0] 	address_bus;
 
-	// --- 10 Mhz
-	// freq_div div_10MHz(
-		// .clk(pll),
-		// .q(clk_10MHz)
-	// );
-
-	wire ram_init_ready;
-
-	wire [11:0] addr_init;
-	wire [11:0] addr_rw;
-
+	wire 	[7:0] 	data_to_cpu;
+	wire 	[7:0] 	data_from_cpu;
+	
 	assign addr = (ram_init_ready == 1'b0) ? addr_init : addr_rw;
-
-	wire 	[15:0] address_bus;
-	wire 	cpu_we_n;
-	wire 	[7:0] data_to_cpu;
-	wire 	[7:0] data_from_cpu;
-	
-	// assign	hw_DIG_out0 = ram_init_ready;
-	
-	// ------------------------------------------------------------------------
-	// --- CPU
-	// ------------------------------------------------------------------------
-	// cpu cpu_i( 
-		// .clk(clk_10MHz),
-		// .reset(~ram_init_ready),
-		// .AB(address_bus),
-		// .DI(data_to_cpu),
-		// .DO(data_from_cpu),
-		// .WE(cpu_we),
-		// .IRQ(1'b0),
-		// .NMI(1'b0),
-		// .RDY(1'b1)		// CPU Pause when RDY = 0
-	// );
 	
 	wire w_refresh;
 
@@ -475,31 +402,31 @@ module top (
 	// assign enable = (hw_DIP_Switch3) ? 1'b1 : ~w_refresh;
 `endif
 
-	// T65 cpu1(
-		// // .Enable 		(1'b1),				//	=> '1',
-		// .Enable 		(cpuen),			//	=> '1',
-		// .Mode 			(2'b00),			//	=> "00",
-		// .Res_n 			(ram_init_ready),	//	=> n_reset,
-		// .Clk 			(clock),		//	=> cpuClock,
-		// .Rdy 			(1'b1),				//	=> '1',
-		// .Abort_n 		(1'b1),				//	=> '1',
-		// .IRQ_n 			(1'b1),				//	=> '1',
-		// .SO_n 			(1'b1),				//	=> '1',
+	T65 cpu1(
+		// .Enable 		(1'b1),				//	=> '1',
+		.Enable 		(cpuen),			//	=> '1',
+		.Mode 			(2'b00),			//	=> "00",
+		.Res_n 			(ram_init_ready),	//	=> n_reset,
+		.Clk 			(clock),		//	=> cpuClock,
+		.Rdy 			(1'b1),				//	=> '1',
+		.Abort_n 		(1'b1),				//	=> '1',
+		.IRQ_n 			(1'b1),				//	=> '1',
+		.SO_n 			(1'b1),				//	=> '1',
 		
-// // `define NMI
-// `ifdef NMI		
-		// .NMI_n 			(w_refresh),		//	=> '1',
-// `else		
-		// .NMI_n 			(1'b1),		//	=> '1',
-// `endif		
-// `ifdef MODEL_TECH		
-		// .Regs			(w_regs),
-// `endif
-		// .R_W_n 			(cpu_we_n),			//	=> n_WR,
-		// .addr			(address_bus),		//	=> cpuAddress,
-		// .DI 			(data_to_cpu),		//	=> cpuDataIn,
-		// .DO 			(data_from_cpu)		//	=> cpuDataOut
-	// );
+// `define NMI
+`ifdef NMI		
+		.NMI_n 			(w_refresh),		//	=> '1',
+`else		
+		.NMI_n 			(1'b1),		//	=> '1',
+`endif		
+`ifdef MODEL_TECH		
+		.Regs			(w_regs),
+`endif
+		.R_W_n 			(cpu_we_n),			//	=> n_WR,
+		.addr			(address_bus),		//	=> cpuAddress,
+		.DI 			(data_to_cpu),		//	=> cpuDataIn,
+		.DO 			(data_from_cpu)		//	=> cpuDataOut
+	);
 
 	refresh refresh_i (
 		.clk(clock),
@@ -575,45 +502,35 @@ always @*
 		.clk(clock)
 	);
 
-	wire [7:0] data_from_uart; //  = 8'haa;
-	wire bbb;
-	wire ccc;
-	// wire combo_uart;
-	
-	// assign combo_uart = ~selector_uart || ~data_from_uart[1];
+	wire 			bbb;
+	wire 			ccc;
+	wire			serialClock;
+	wire	[7:0]	data_from_uart; //  = 8'haa;
 	
 	assign bbb = ~selector_uart || cpuen || cpu_we_n;
 	assign ccc = ~selector_uart || cpuen || ~cpu_we_n;
-	// assign bbb = ~selector_uart || clk_10MHz || cpu_we_n;
-	// assign ccc = ~selector_uart || clk_10MHz || ~cpu_we_n;
-	// assign bbb = ~combo_uart || clk_10MHz || cpu_we_n;
-	// assign ccc = ~combo_uart || clk_10MHz || ~cpu_we_n;
-
-	// bbb <= n_interface1CS or cpuClock or n_WR;
-	// ccc <= n_interface1CS or cpuClock or (not n_WR);
-	wire 		serialClock;
 
 	// ------------------------------------------------------------------------
 	// --- UART
 	// ------------------------------------------------------------------------
 	bufferedUART bufferedUART_i (
-		.clk 		(clock),	// => clk,
+		.clk 		(clock),			// => clk,
 		// .clk 		(clk_10MHz),	// => clk,
-		.n_wr 		(bbb),	// => bbb,
-		.n_rd 		(ccc),	// => ccc,
-		.n_int 		(),	// => n_int1,
+		.n_wr 		(bbb),				// => bbb,
+		.n_rd 		(ccc),				// => ccc,
+		.n_int 		(),					// => n_int1,
 		.regSel 	(address_bus[0]),	// => cpuAddress(0),
 		.dataIn 	(data_from_cpu),	// => cpuDataOut,
 		.dataOut 	(data_from_uart),	// => interface1DataOut,
-		.rxClock 	(serialClock),	// => serialClock,
-		.txClock 	(serialClock),	// => serialClock,
-		.rxd 		(hw_DIG_in),	// => rxd1,
-		.txd 		(hw_DIG_out2),	// => txd1,
-		.n_cts 		(1'b0),	// => '0',
-		.n_dcd 		(1'b0),	// => '0',
-		.n_rts 		(),	// => rts1,
-		.status0	(),	// => open,
-		.status1	()	// => open
+		.rxClock 	(serialClock),		// => serialClock,
+		.txClock 	(serialClock),		// => serialClock,
+		.rxd 		(hw_DIG_in),		// => rxd1,
+		.txd 		(hw_DIG_out2),		// => txd1,
+		.n_cts 		(1'b0),				// => '0',
+		.n_dcd 		(1'b0),				// => '0',
+		.n_rts 		(),					// => rts1,
+		.status0	(),					// => open,
+		.status1	()					// => open
 	);
 
 	reg [15:0] 	serialClkCount;
@@ -625,8 +542,6 @@ always @*
 		else
 			serialClkCount <= serialClkCount + 16'd2416;
 	end
-	
-
 
 	wire	init_n_cs;
     wire	init_n_RAS;
@@ -667,11 +582,6 @@ always @*
 	);
 
 	wire [7:0] data_from_ram;
-	
-	// reg [7:0] r_data_from_rom;
-	// always@(posedge clk_10MHz) begin
-		// r_data_from_rom <= data_from_rom;
-	// end
 
 //`define SIM_RAM
 `ifdef SIM_RAM
@@ -685,15 +595,15 @@ always @*
 `endif
 
 	// helper
-	wire [7:0] data_for_sdram;
+	wire 	[7:0]	data_for_sdram;
 
 	assign data_for_sdram = (selector_ram_ext && !cpu_we_n) ? data_from_cpu : 8'hz;
 
 `ifdef MODEL_TECH
 	// inout from / to sdram
 	// hw_sdData_io
-	reg [15:0] r_sd_data = 16'h5a5a;
-	wire [15:0] w_sd_data;
+	reg 	[15:0] 	r_sd_data = 16'h5a5a;
+	wire 	[15:0] 	w_sd_data;
 
 	assign w_sd_data = (cpu_we_n && selector_ram_ext) ? r_sd_data : 16'bz;
 `endif	
@@ -712,21 +622,16 @@ always @*
 		.R_nW_in(cpu_we_n && selector_ram_ext),
 		.addr_in(address_bus),
 		.data_in(data_for_sdram),
-		// .test_data(test_data),
-		
-		// .test_input1(w_hw_KEY2),
-		// .test_input2(w_hw_KEY3),
 		
 		// out
 		.data_out(data_from_ram),
-		// .ready(hw_DIG_out1),	// TEST: output
 		
 		// RAM
 		.n_cs	(rw_n_cs),	// Chip Select
 		.n_RAS	(rw_n_RAS),
 		.n_CAS	(rw_n_CAS),
 		.n_WE	(rw_n_WE),	// Write Enable
-		.addr(addr_rw),
+		.addr	(addr_rw),
 		// .DQ(DQ)
 `ifdef MODEL_TECH
 		.DQ(w_sd_data)
@@ -738,6 +643,9 @@ always @*
 	
 endmodule
 
+// ----------------------------------------------------------------------------
+// --- refresh ----------------------------------------------------------------
+// ----------------------------------------------------------------------------
 module refresh (
 	input clk,
 	input reset,
@@ -769,6 +677,10 @@ module refresh (
 	assign q = count == 9'h1ff ? 1'b1 : 1'b0;
 	
 endmodule
+
+// ----------------------------------------------------------------------------
+// --- refresh2 ---------------------------------------------------------------
+// ----------------------------------------------------------------------------
 module refresh2 (
 	input clk,
 	input reset,
@@ -789,6 +701,9 @@ module refresh2 (
 	
 endmodule
 
+// ----------------------------------------------------------------------------
+// --- addr_refresh -----------------------------------------------------------
+// ----------------------------------------------------------------------------
 module addr_refresh (
 	input clk,
 	input reset,
@@ -829,24 +744,19 @@ module sdram_read_write (
 	input	[15:0]	addr_in,		// NOW: 64kB
 	input	[7:0]	data_in,
 	
-	// input	[7:0]	test_data,
-	// input 			test_input1,
-	// input 			test_input2,
-	
 	output	[7:0]	data_out,
-	// output		 	ready,
 	
 	// ram
 	// output		 		clk,	// Clock
 	// output	reg 		cke,	// Clock Enable
 	// output	reg 		BA0,	// Bank select
 	// output	reg 		BA1,	// Bank select
-	output	[11:0]		addr,	// Address
+	output	[11:0]		addr,		// Address
 	
-	output		 		n_cs,	// Chip Select
+	output		 		n_cs,		// Chip Select
 	output		 		n_RAS,
 	output		 		n_CAS,
-	output		 		n_WE,	// Write Enable
+	output		 		n_WE,		// Write Enable
 	
 	// output	reg 		UDQM,
 	// output	reg 		LDQM,
@@ -856,30 +766,9 @@ module sdram_read_write (
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 
-	assign DQ = (!R_nW_in && cs_in) ? { 8'b00, data_in } : 16'hzz;
-
+	assign DQ 		= (!R_nW_in && cs_in) ? { 8'b00, data_in } : 16'hzz;
 	assign data_out = (R_nW_in && cs_in) ? DQ[7:0] : 8'bzz;
 
-	// reg r_request_old;
-	
-	// Mode: n_cs, n_RAS, n_CAS, n_WE
-	// assign n_cs		= mode[7];
-	// assign n_RAS	= mode[6];
-	// assign n_CAS	= mode[5];
-	// assign n_WE		= mode[4];
-	
-	// localparam STATE_NOP_H		= 8'b1???_0000;	// cmd  INHIBIT
-	// localparam STATE_IDLE		= 8'b1111_0000;
-	// localparam STATE_MODE		= 8'b0000_0000;
-	// localparam STATE_NOP_L		= 8'b0111_0000;
-	// localparam STATE_NOP_L_B1	= 8'b0111_0001;
-	// localparam STATE_NOP_L_B2	= 8'b0111_0010;
-	// localparam STATE_NOP_L_C1	= 8'b0111_0011;
-	// localparam STATE_NOP_L_C2	= 8'b0111_0100;
-	// localparam STATE_BANK		= 8'b0011_0000;	// RAS
-	// localparam STATE_READ		= 8'b0101_0000;	// CAS
-	// localparam STATE_WRITE		= 8'b0100_0000;	// CAS	TODO: check the bits for this mode
-	
 	localparam STATE_IDLE		= 4'h0;
 	localparam STATE_MODE		= 4'h1;
 	localparam STATE_NOP_L		= 4'h2;
@@ -898,41 +787,10 @@ module sdram_read_write (
 	localparam STATE_XXX_f		= 4'ha;
 	
 	// ------------------------------------------------------------------------
-	// --- Mode Next ----------------------------------------------------------
-	// ------------------------------------------------------------------------
-	// reg [3:0] mode;
-	// reg [3:0] mode_next;
-	// always@(posedge pll or posedge reset) begin : aw1
-		// if(reset) begin
-			// mode <= STATE_IDLE;
-		// end
-		// else begin
-			// mode <= mode_next;
-		// end
-	// end
-
-
-	// ------------------------------------------------------------------------
-	// --- Request ------------------------------------------------------------
-	// ------------------------------------------------------------------------
-	// always@(posedge sys_clk or posedge reset) begin
-	// // always@(posedge pll or posedge reset) begin
-		// if(reset) begin
-			// r_request_old <= 1'b0;
-		// end
-		// else begin
-			// // if(ena)
-				// r_request_old <= ena;
-		// end
-	// end
-	
-	// ------------------------------------------------------------------------
 	// --- Mode Counter -------------------------------------------------------
 	// ------------------------------------------------------------------------
 	reg [10:0] count1  = 0;
 	always@(posedge pll) begin
-		// if(!cs_in)
-		// if(!r_request_old && ena)
 		if(ena)
 			count1 = 1'd1;
 		else
@@ -943,22 +801,21 @@ module sdram_read_write (
 	
 	// TODO: output ctrl lines only when ext ist select
 	mode_sel mode_sel_i (
-		.d(count1),
-		.Rw(R_nW_in),
-		.q(w_mode1)
+		.d	(count1),
+		.Rw	(R_nW_in),
+		.q	(w_mode1)
 	);
 
 	wire refresh3;
 	
-	// reg [3:0] selecter;
 	wire selecter_ras;
 	wire selecter_cas;
 	
-	// assign selecter_ras = (mode == STATE_IDLE) ? 1'b1 : 1'b0;
-	// assign selecter_cas = (mode == STATE_READ) ? 1'b1 : 1'b0;
-	assign selecter_ras = 	(count1 == 11'b00000000010) ? 1'b1 : 
-							(count1 == 11'b00000000001) ? 1'b1 :
+	assign selecter_ras = 	
+		(count1 == 11'b00000000010) ? 1'b1 : 
+		(count1 == 11'b00000000001) ? 1'b1 :
 		1'b0;
+		
 	assign selecter_cas = (count1 == 11'b00000001000) ? 1'b1 : 1'b0;
 	
 	assign n_RAS	= (cs_in || refresh3) ? w_mode1[2] : 1'bz;
@@ -968,157 +825,25 @@ module sdram_read_write (
 		(refresh3) 		? 1'b1 :
 		(!cs_in) 		? 1'bz :
 		(selecter_cas) 	? R_nW_in : w_mode1[0] ;
-		
-	// ------------------------------------------------------------------------
-	// --- Mode State ---------------------------------------------------------
-	// ------------------------------------------------------------------------
-	// always@(mode, R_nW_in ) begin
-		// mode_next = mode;
-		// case(mode)
-			// STATE_IDLE: begin
-				// mode_next	= STATE_NOP_L_B2;
-				// // selecter_ras = 1'b0;
-				// // selecter_cas = 1'b0;
-				// // selecter	= STATE_NOP_L_B1;
-			// end
-			// // STATE_NOP_L_B1: begin
-				// // mode_next 	= STATE_NOP_L_B2;
-				// // // selecter	= STATE_NOP_L_B2;
-			// // end
-			// STATE_NOP_L_B2: begin
-				// if(R_nW_in) begin
-					// mode_next = STATE_READ;
-				// // selecter_ras = 1'b1;
-				// // selecter_cas = 1'b1;
-					// // selecter = STATE_READ;
-				// end
-				// else begin
-					// mode_next = STATE_WRITE;
-					// // selecter = STATE_WRITE;
-				// end
-			// end
-			// STATE_WRITE: begin
-					// // mode_next = STATE_NOP_L_C1;
-					// mode_next = STATE_IDLE;
-					// // selecter = STATE_NOP_L_C1;
-			// end
-			// STATE_READ: begin
-					// // mode_next = STATE_NOP_L_C1;
-					// mode_next = STATE_IDLE;
-					// // selecter = STATE_NOP_L_C1;
-			// end
-			// // STATE_NOP_L_C1: begin
-					// // mode_next = STATE_NOP_L_C2;
-					// // // selecter = STATE_NOP_L_C2;
-			// // end
-			// // STATE_NOP_L_C2: begin
-					// // mode_next = STATE_IDLE;
-					// // // selecter = STATE_IDLE;
-			// // end
-			// default: begin
-				// mode_next = STATE_IDLE;
-			// end
-		// endcase
-	// end
 	
-	wire [11:0]	addr_cas;
-	wire [11:0]	addr_ras;
+	wire 	[11:0]	addr_cas;
+	wire 	[11:0]	addr_ras;
 	
 	// wire 	auto_precharge_a10;
 	// assign 	auto_precharge_a10 = test_input1;
 	
 	// assign addr_cas		= { 1'b0, auto_precharge_a10, 2'b0, addr_in[ 7:0] };
 	// assign addr_ras		= { 1'b0, auto_precharge_a10, 2'b0, addr_in[15:8] };
-	// assign addr_cas		= { 1'b0, 1'b0, 2'b0, addr_in[ 7:0] };
-	// assign addr_ras		= { 1'b0, 1'b0, 2'b0, addr_in[15:8] };
 	
-	wire [11:0] ras_cas_n_addr;
-	
-	// assign addr = (cs_in) ? ras_cas_n_addr : 12'hx;
-	
-	// assign ras_cas_n_addr = 
-		// (mode == STATE_BANK) ? addr_ras : 
-		// (mode == STATE_READ) || (mode == STATE_WRITE) ? addr_cas :
-		// 12'hz;
-	
-	// reg [3:0] count;
-	
-	// reg [7:0] 	test_data = 8'hea;	// NOP 0xea
-	reg [7:0]	data_out_reg;
-	reg [7:0]	data_out_reg_NO_C2;
-
-	// ------------------------------------------------------------------------
-	// DATA OUT
-	// ------------------------------------------------------------------------
-	// always@(posedge pll or posedge reset) begin : aw2
-		// if(reset) begin
-			// data_out_reg <= 0;
-		// end
-		// else begin
-			// data_out_reg_NO_C2	<= test_data;
-			// if(mode == STATE_NOP_L_C2)
-				// data_out_reg	<= test_data;
-		// end
-	// end
-	
-	// assign data_out = (mode == STATE_NOP_L_C2) ? test_data : 8'hz;
-	// assign data_out = data_out_reg;
-	// assign data_out = (cs_in && R_nW_in) ? data_out_reg_NO_C2 : 8'hz;
-	
-	// ------------------------------------------------------------------------
-	// ------------------------------------------------------------------------
-	// ------------------------------------------------------------------------
-	// always@(posedge pll or posedge reset) begin : mainstate
-		// if(reset) begin
-			// mode 	<= STATE_IDLE;
-			// // count	<= 0;
-		// end
-		// else begin
-			// case(mode) 
-				// STATE_IDLE:	begin
-						// // if(cs_in && R_nW_in)
-					// // if(!r_request_old && cs_in)
-						// mode <= STATE_BANK;
-				// end
-				// STATE_BANK: begin
-						// mode <= STATE_NOP_L_B1;
-				// end
-				// STATE_NOP_L_B1: begin
-						// mode <= STATE_NOP_L_B2;
-				// end
-				// STATE_NOP_L_B2: begin
-					// // if(R_nW_in)
-						// // mode <= STATE_READ;
-					// // else
-						// mode <= STATE_WRITE;
-				// end
-				// STATE_WRITE: begin
-						// mode <= STATE_NOP_L_C1;
-				// end
-				// STATE_READ: begin
-						// mode <= STATE_NOP_L_C1;
-				// end
-				// STATE_NOP_L_C1: begin
-						// mode <= STATE_NOP_L_C2;
-				// end
-				// STATE_NOP_L_C2: begin
-						// mode <= STATE_IDLE;
-				// end
-				// default: 	mode <= STATE_IDLE;
-			// endcase
-		// end
-	// end
-	
+	reg 	[7:0]	data_out_reg;
+	reg 	[7:0]	data_out_reg_NO_C2;
+	wire 	[11:0] 	ras_cas_n_addr;
 	wire	[11:0]	w_addr;
+	wire 	[15:0] 	refresh_addr;
+	wire 	[15:0] 	addr_ras_cas;
 	
-	assign addr = (cs_in || refresh3) ? w_addr : 12'hz;
-	
-	wire [15:0] refresh_addr;
-	
-	assign refresh3 = (~ena && ~cs_in) ? 1'b1 : 1'b0;
-	
-	wire [15:0] addr_ras_cas;
-	
+	assign addr 		= (cs_in || refresh3) ? w_addr : 12'hz;
+	assign refresh3 	= (~ena && ~cs_in) ? 1'b1 : 1'b0;
 	assign addr_ras_cas = ~refresh3 ? addr_in : refresh_addr;
 	
 	// ------------------------------------------------------------------------
@@ -1132,21 +857,9 @@ module sdram_read_write (
 		.q(w_addr)
 	);
 
-
 	// ------------------------------------------------------------------------
-	// --- Refresh ------------------------------------------------------------
+	// --- addr_refresh -------------------------------------------------------
 	// ------------------------------------------------------------------------
-	// reg refresh3 = 1'b0;
-	// always@(posedge sys_clk) begin
-		// // if(r_request_old && ~ena && ~cs_in)
-		// if(~ena && ~cs_in)
-			// refresh3	= 1'b1;
-		// else
-			// refresh3	= 1'b0;
-	// end
-
-
-
 	addr_refresh addr_refresh_i ( 
 		.clk(sys_clk),
 		.reset(reset),
@@ -1155,28 +868,6 @@ module sdram_read_write (
 		.addr(refresh_addr)
 	);
 	
-`ifdef MODEL_TECH2
-
-/*
- * easy to read names in simulator output
- */
-reg [8*6-1:0] statename;
-
-always @*
-    case( mode ) 
-		STATE_IDLE		: statename = "IDLE";
-		STATE_BANK		: statename = "BANK";
-		STATE_NOP_L		: statename = "NOP";
-		STATE_NOP_L_B1	: statename = "NOP_B1";
-		STATE_NOP_L_B2	: statename = "NOP_B2";
-		STATE_NOP_L_C1	: statename = "NOP_C1";
-		STATE_NOP_L_C2	: statename = "NOP_C2";
-		STATE_READ		: statename = "READ";
-		STATE_WRITE		: statename = "WRITE";
-	endcase
-	
-`endif	
-
 `ifdef MODEL_TECH
 
 /*
@@ -1191,13 +882,6 @@ always @*
 		2'b11		: statenameR = "READ";
 		2'b01		: statenameR = "WRITE";
 		default		: statenameR = "NOTEXT";
-		// STATE_NOP_L		: statename = "NOP";
-		// STATE_NOP_L_B1	: statename = "NOP_B1";
-		// STATE_NOP_L_B2	: statename = "NOP_B2";
-		// STATE_NOP_L_C1	: statename = "NOP_C1";
-		// STATE_NOP_L_C2	: statename = "NOP_C2";
-		// STATE_READ		: statename = "READ";
-		// STATE_WRITE		: statename = "WRITE";
 	endcase
 	
 `endif	
@@ -1213,9 +897,9 @@ module mode_sel (
 		output [3:0] q
 	);
 
-	reg [3:0] w_mode;
+	reg 	[3:0] 	w_mode;
 	
-	assign q = w_mode;
+	assign q 	= w_mode;
 
 	always@(d) begin
 		case (d)
@@ -1257,11 +941,6 @@ module ras_cas_select (
 				sel_cas ? cas :
 				12'hz;
 	
-	// assign q = 
-		// (sel == 4'h7) ? ras :
-		// (sel == 4'h8) || ( sel == 4'h9) ? cas :
-		// 11'hz;
-
 endmodule
 
 // ----------------------------------------------------------------------------
@@ -1350,10 +1029,7 @@ module sdram_init (
 			count 	<= 0;
 			trigger <= 1'b0;
 			r_mode	<= 4'b1111;
-			// r_clk	<= 1'b0;
 			ready 	<= 1'b0;
-			// init	<= 1'b0;
-			// mode	<= 4'b_1000;			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			cke		<= 1'b0;				// <<<--- dont forget to ENABLE !!!!
 			// BA0		<= 1'b0;
 			// BA1		<= 1'b0;
@@ -1406,10 +1082,11 @@ module sdram_init (
 	assign initiala[3] = (count == 16'd14167) ? 1'b1 : 1'b0;			// load Mode command
 	assign initiala[4] = (count == 16'd14171) ? 1'b1 : 1'b0;			// ready
 `endif
+
 	// --- 
 	sdram_init_mode sdram_init_mode_i (
-		.initiala(initiala),
-		.mode(mode)
+		.initiala	(initiala),
+		.mode		(mode)
 	);
 		
 endmodule
@@ -1418,8 +1095,8 @@ endmodule
 // --- sdram_init_mode --------------------------------------------------------
 // ----------------------------------------------------------------------------
 module sdram_init_mode (
-	input [4:0]	initiala,
-	output [3:0] mode
+	input 	[4:0]	initiala,
+	output 	[3:0] 	mode
 );
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
@@ -1438,15 +1115,6 @@ module sdram_init_mode (
 			5'b_0_1000: w_mode = 4'b_0000;	// mode
 			5'b_1_0000: w_mode = 4'b_0111;	// ready
 			default:	w_mode = 4'b_zzzz;	//
-		// endcase
-		// casez(initiala)
-			// // Mode: n_cs, n_RAS, n_CAS, n_WE
-			// 5'b_?_???1: w_mode = 4'b_1000;	// nop
-			// 5'b_?_??1?: w_mode = 4'b_0010;	// precharge
-			// 5'b_?_?1??: w_mode = 4'b_0001;	// auto refresh
-			// 5'b_?_1???: w_mode = 4'b_0000;	// mode
-			// 5'b_1_????: w_mode = 4'b_0111;	// ready
-			// default:	w_mode = 4'b_1111;	//
 		endcase
 	end
 endmodule
@@ -1473,577 +1141,4 @@ module freq_div(
 		end
 			else count <= count +1'd1;
 	end
-	
 endmodule
-
-// ----------------------------------------------------------------------------
-// --- old top ----------------------------------------------------------------
-// ----------------------------------------------------------------------------
-module top2 (
-
-	input 		hw_clk,
-	input 		hw_reset,
-	input [3:0]	hw_KEY,
-	
-	input 		hw_DIG_in,	
-	
-	output [6:0] hw_SEG_out,
-	output [2:0] hw_DIG_out,
-	output [7:0] hw_LEDs
-);
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
-
-	wire clock;
-	wire reset;
-	wire send;
-	wire rx_in;
-	wire key1;
-	
-	reg [7:0] tosend 	= 'h01;
-
-// `define MODEL_TECH
-`ifdef MODEL_TECH
-	reg r_reset ;
-	reg r_send 	;
-	reg r_rx_in ;
-	reg r_clock ;
-	
-	assign reset = r_reset;
-
-	assign send = r_send;
-	
-	assign rx_in = r_rx_in;
-	
-	assign clock = r_clock;
-	
-	always
-		#2 r_clock = !r_clock;
-	
-	initial begin
-		$dumpfile("uart_tb.vcd");
-		$dumpvars(0, top);
-	#0 r_reset = 1;
-	#0 r_send = 0;
-	#0 r_rx_in = 1;
-	#0 r_clock = 0;
-	
-		#10	r_reset = 0;
-		#10 r_send  = 1;
-		#10 r_rx_in	= 0;
-		#868 r_rx_in	= 1;
-		#868 r_rx_in	= 0;
-		#6000 r_rx_in	= 1;
-		#2500 r_rx_in	= 0;
-		#868 r_rx_in	= 1;
-		#868 r_rx_in	= 0;
-		#868 r_rx_in	= 0;
-		#868 r_rx_in	= 1;
-		#868 r_rx_in	= 0;
-		#3500 r_rx_in	= 1;
-		#5000 r_rx_in	= 0;
-		$finish;
-	end
-`else
-	assign clock	= hw_clk;
-	assign reset 	= !hw_reset;
-	assign rx_in 	= hw_DIG_in;
-	// assign send 	= !hw_KEY[0];
-`endif	
-
-	assign key1 = !hw_KEY[0];
-	
-	// assign hw_DIG_out[1] = hw_DIG_in;	// for Osci -- uart in
-	assign hw_DIG_out[1] = key1;			// for Osci -- key1
-
-	wire [7:0] 	r_uart_rx;
-	wire 		trigger;
-	
-	wire w_key1;
-	
-	debounce key1_i (
-		.clk(clock),
-		.button(key1),
-		.q(w_key1)
-	);
-	
-	reg led0;
-	reg old_key1;
-	
-	always@(posedge clock) begin
-		
-		old_key1 <= w_key1;
-		if( w_key1 && !old_key1)
-			led0	<= !led0;
-	end
-	
-	// assign hw_LEDs[0] = led0;
-
-	uart_rx uart_rx_i (
-		.clk		(clock),
-		.reset		(reset),
-		.rx_in		(rx_in),
-		// .new_data	(hw_DIG_out[0]),
-		// .data_out	(r_uart_rx)	//(hw_LEDs)
-		.data_out	()
-	);
-	
-	uart_tx uart_tx_i (
-		.clk		(clock),
-		.reset		(reset),
-		// .send		(send && trigger),
-		.send		(w_key1), //trigger),
-		// .data_in	(r_uart_rx),
-		.data_in	(tosend),
-		.tx_empty	(),
-		.tx_out		(hw_DIG_out[2])
-	);
-	
-	always @(posedge clock or posedge reset)
-		tosend <= 'h01;
-	
-endmodule
-
-module debounce (
-	input		clk,
-	input		button,
-	output	reg	q
-);
-
-	reg [20:0] counter;
-	
-	always@(posedge clk) begin
-		if(button) begin
-			counter <= counter + 1;
-		end
-		else begin
-			counter <= 0;
-			q <= 0;
-		end
-		
-		if(counter == 500000 )
-			q <= 1;
-	end
-	// assign q = (counter  ? button : !button);
-		
-endmodule
-
-module uart_rx_2 (
-	input clk,
-	input reset,
-	input rx_in,
-	
-	output	new_data,
-	output reg [7:0] data_out
-);
-
-	localparam	HALF_PERIOD = (50_000_000 / 115200 ) /2;
-
-	reg 		r_rx_in_old;		// old edge of signal
-	reg [3:0]	count /*synthesis keep*/;
-
-	assign new_data = count[3];
-	
-	reg count_up = 1;
-	reg enable = 1;
-
-	always@(posedge clk, posedge reset) begin
-	
-		if(reset) begin
-			count <= 0;
-		end
-		else begin
-			// start: detect 1 > 0 edge
-			r_rx_in_old	<= rx_in;
-			if( !rx_in && r_rx_in_old ) begin
-				// count <= HALF_PERIOD;
-			end
-			if(enable)
-				count <= count + 1'b1;
-				// count <= count + (count_up ? 1 : -1);
-		end
-	end
-
-endmodule
-
-module uart_rx (
-	input clk,
-	input reset,
-	input rx_in,
-	
-	output	new_data,
-	output reg [7:0] data_out
-);
-	reg [3:0]	bitcount;
-	reg [8:0]	count;
-	reg			rx_start;
-	reg 		rx_in_old;
-	reg 		rx_getbits;
-	reg [7:0]	rx_data_reg;
-	reg 		rx_sampleBits;
-	reg 		rx_sampleStart;
-	reg 		r_new_data;
-
-	assign new_data = r_new_data;
-
-	always @(posedge clk or posedge reset)
-	begin
-		if(reset) begin
-			count 			<= 0;
-			rx_start		<= 0;
-			rx_getbits		<= 0;
-			bitcount		<= 0;
-			rx_sampleBits	<= 0;
-			rx_sampleStart	<= 0;
-			r_new_data		<= 0;
-		end
-		else begin
-		
-			// Edge Startbit
-			rx_in_old <= rx_in;
-			if( (!rx_in && rx_in_old) && !rx_start) begin
-				rx_start 	<= 1;
-				count 		<= 9'h000;
-				rx_data_reg	<= 8'h00;
-				bitcount	<= 0;
-			end 
-			
-			else 
-			
-			// FullTime
-			if(count == (50_000_000 / 115200) ) begin
-				if(rx_start && bitcount < 8)
-					rx_data_reg <= rx_data_reg >> 1;
-				// count <= 0;
-				count 		<= 9'h000;
-			end
-			// HalfTime
-			else if(count == (50_000_000 / 115200) / 2 ) begin
-				// check for startbit
-				if(!rx_getbits && rx_start) begin
-					if(!rx_in) begin	// startbit ok
-						rx_getbits	<= 1;
-						bitcount	<= 0;
-					end
-					else
-						rx_start 	<= 0;		// Abort
-						
-					rx_sampleStart	<= 1;
-				end
-				else begin
-					if(bitcount < 8) begin
-						rx_data_reg[7] 	<= rx_in;
-						// rx_data_reg 	<= rx_data_reg >> 1;
-						bitcount		<= bitcount +1;
-						rx_sampleBits	<= 1;
-					end
-					// else begin
-					else if(bitcount == 8) begin
-						r_new_data	<= 1;
-						rx_start 	<= 0;
-						rx_getbits	<= 0;
-						// bitcount	<= 0;
-						data_out 	<= rx_data_reg;
-					end
-				end
-				count <= count +1;
-			end
-			else begin
-				count 			<= count +1;
-				rx_sampleBits	<= 0;
-				rx_sampleStart	<= 0;
-				r_new_data		<= 0;
-			end
-		end
-	end
-
-endmodule
-
-module uart_tx (
-	input	clk,
-	input	reset,
-	input	send,
-	input	[7:0] data_in,
-	
-	output	tx_empty,
-	output	tx_out
-);
-	reg [4:0]	bitcount;
-	reg [8:0]	count;
-	reg [9:0]	send_reg;
-	reg 		send_old;
-	reg 		send_do;
-	reg 		r_tx_empty;
-	
-	assign tx_out 	= !send_reg[0];
-	assign tx_empty	= r_tx_empty;
-
-	// CLOCK
-	always @(posedge clk or posedge reset)
-	begin
-		if(reset) begin
-			bitcount	<= 0;
-			count 		<= 0;
-			send_reg 	<= 0;
-			send_do 	<= 0;
-			r_tx_empty	<= 1;
-		end
-		else begin
-			if(clk) begin
-				send_old 		<= send;
-				if(send && !send_old)
-					send_do 	<= 1;
-			end
-			if(count == (50_000_000 / 115200) ) begin
-				count 			<= 0;
-				if( send_do && r_tx_empty ) begin
-					send_reg 	<= { 1'b0, ~data_in[7:0], 1'b1};
-					r_tx_empty	<= 0;
-					send_do 	<= 0;
-				end
-				else begin
-					send_reg 	<= send_reg >> 1;
-					bitcount 	<= bitcount +1;
-				end
-				if(bitcount == 10)
-					r_tx_empty	<= 1;
-			end
-			else begin
-				count <= count +1;
-			end
-		end
-	end
-
-endmodule
-
-	// reg [6:0] r_hw_SEG_out = 7'b_111_1110;
-	// reg [3:0] r_hw_DIG_out = 4'b_1110;
-	
-	// wire serial_tx;
-	// wire serial_rx;
-	// wire reset;
-	
-	// assign reset = hw_reset;
-	
-	// // assign serial_tx	= r_hw_DIG_out[2];
-	// assign hw_DIG_out[2] = serial_tx;
-	
-	// assign hw_SEG_out 		= r_hw_SEG_out;
-	// assign hw_DIG_out[1:0] 	= r_hw_DIG_out[1:0];
-	
-	// reg [7:0] r_leds = 8'h00;
-	// reg [31:0] count;
-	// reg [19:0] count_50hz;
-	
-	// assign hw_LEDs = r_leds;
-
-	// uart_tx myUartTx (
-		// .clk(hw_clk),
-		// .reset(reset),
-			// .data_in(8'b0100_0111),
-		// .rdy(),
-		// .data_tx(serial_tx)
-	// );
-
-	// // always@(posedge hw_clk) begin
-		// // if(count_50hz == 100000) begin
-			// // count_50hz <= 20'h00000;
-			// // // r_hw_DIG_out[1]	<= r_hw_DIG_out[0];
-			// // // r_hw_DIG_out[2]	<= r_hw_DIG_out[1];
-			// // // r_hw_DIG_out[3]	<= r_hw_DIG_out[2];
-			// // // r_hw_DIG_out[0]	<= r_hw_DIG_out[3];
-		// // end
-		// // else begin
-			// // count_50hz <= count_50hz +1;
-		// // end
-	// // end
-
-// endmodule
-
-// module uart_tx (			// Logisch : neg. polarity
-	// input 		clk,
-	// input 		reset,
-	// input 		send,		// TODO:
-	// input [7:0] data_in,
-	// output 		rdy,
-	// output 		data_tx
-// );
-	// parameter CLOCKS_PER_BIT	= 50_000_000/115200;
-	
-	// reg [$clog2(2 * CLOCKS_PER_BIT):0] r_clocks = 0;
-	// reg r_data_tx 	= 1'b0;
-	// reg r_rdy;
-	// reg r_par;
-	
-	// reg r_uart_clk = 1;
-	
-	// assign rdy 		= r_rdy;
-	// assign data_tx 	= r_data_tx;
-	
-	// localparam 
-		// STATE_IDLE	= 3'b_000,
-		// STATE_START	= 3'b_001,
-		// STATE_BITS	= 3'b_010,
-		// STATE_STOP	= 3'b_011,
-		// STATE_WAIT	= 3'b_100,
-		// STATE_PAR	= 3'b_101
-	// ;
-	
-		
-	// // radix define SM_MODE { 3'b00 "IDLE",3'b001 "START",3'b010 "BITS",3'b011 "STOP",3'b100 "WAIT",3'b101 "PAR", -default hex}
-	
-	// reg [2:0] SM_MODE;
-	// reg [2:0] SM_NEXT;
-	
-	// reg [3:0] bitcount;
-	// reg [3:0] wait1;
-	
-	// // wire reset;
-	// // assign reset = hw_reset;
-			
-	// always@(posedge clk, posedge reset) begin
-		// if(reset)
-			// SM_MODE <= STATE_IDLE;
-		// else begin
-			// if(r_clocks == CLOCKS_PER_BIT) begin
-				// r_uart_clk <= 1'b1;
-				// r_clocks <= 0;
-				// SM_MODE <= SM_NEXT;
-			// end
-			// else if(r_clocks == CLOCKS_PER_BIT/2) begin
-				// r_uart_clk <= 1'b0;
-				// r_clocks <= r_clocks +1;
-			// end
-			// else begin
-				// r_clocks <= r_clocks +1;
-			// end
-		// end
-	// end
-	
-	// // reg [2:0] bits = 3'b_0000;
-	// wire [3:0] bits;
-	// reg w_reset;
-	
-	// counter mycount (
-		// .clk(r_uart_clk),
-		// .reset(w_reset),
-		// .count(bits)
-	// );
-	
-	
-	// always @(SM_MODE, posedge r_uart_clk) begin
-		// SM_NEXT = SM_MODE;
-		// case(SM_MODE)
-			// STATE_IDLE:
-				// begin
-					// SM_NEXT = STATE_START;
-				// end
-			// STATE_START:
-				// begin
-					// w_reset 	= 1;
-					// r_data_tx	<= 1'b1;
-					// SM_NEXT 	= STATE_BITS;
-				// end
-			// STATE_BITS:
-				// if(bits < 8) begin
-					// w_reset 	= 0;
-					// r_data_tx 	<= data_in[bits];
-					// if(bits == 7)
-						// SM_NEXT = STATE_STOP;
-				// end
-			// STATE_STOP:
-				// begin
-					// r_data_tx	<= 1'b0;
-					// SM_NEXT = STATE_WAIT;
-				// end
-			// STATE_WAIT:
-				// SM_NEXT = STATE_IDLE;
-		// endcase
-	// end
-	
-	// // always@(posedge clk) begin
-		// // if(r_clocks == CLOCKS_PER_BIT) begin
-			// // r_uart_clk <= 1'b1;
-			// // r_clocks <= 0;
-			// // case(SM_MODE)
-				// // STATE_IDLE:
-					// // begin
-						// // // r_par <= ~^data_in;		// ODD
-						// // // r_par <= ^data_in;		// EVEN ?
-						// // r_par = 0;
-						// // // set all Zero
-						// // bitcount 	<= 0;
-						// // wait1	 	<= 0;
-						// // r_rdy	 	<= 1'b0;
-						// // r_data_tx 	<= 1'b1;
-						// // // if(send)
-							// // SM_MODE = STATE_START;
-					// // end
-				// // STATE_START:
-					// // begin
-						// // r_data_tx <= 1'b0;
-						// // SM_MODE = STATE_BITS;
-					// // end
-				// // STATE_BITS:
-					// // begin
-						// // // send bits
-						// // // if(!bitcount[3]) begin
-						// // if(bitcount != 8) begin
-							// // r_data_tx 	<= data_in[bitcount];
-							// // bitcount 	<= bitcount +1;
-							// // r_par = r_par ^ !data_in[bitcount]; 
-						// // end
-						// // else begin
-							// // SM_MODE = STATE_STOP;
-							// // r_data_tx 	<= 1'b1;
-						// // end
-					// // end
-				// // STATE_PAR:
-					// // begin
-						// // r_data_tx 	<= !r_par;
-						// // SM_MODE 	= STATE_STOP;
-					// // end
-				// // STATE_STOP:
-					// // begin
-						// // r_data_tx 	<= 1'b1;
-						// // SM_MODE 	= STATE_WAIT;
-					// // end
-				// // STATE_WAIT:
-					// // begin
-						// // if(wait1 != 8) begin
-							// // r_rdy	<= 1'b1;
-							// // wait1	<= wait1 +1;
-						// // end
-						// // else		
-							// // SM_MODE = STATE_IDLE;
-					// // end
-				// // default:
-					// // SM_MODE = STATE_IDLE;
-			// // endcase
-		// // end
-		// // else if(r_clocks == CLOCKS_PER_BIT/2) begin
-			// // r_uart_clk <= 1'b0;
-			// // r_clocks <= r_clocks +1;
-		// // end
-		// // else begin
-			// // r_clocks <= r_clocks +1;
-		// // end
-	// // end
-	
-// endmodule	
-	
-// module counter #(parameter WIDTH = 4)(
-	// input clk,
-	// input reset,
-	// output reg [WIDTH-1:0]count
-// );
-	// always@(posedge clk, posedge reset) begin
-		// if(reset)
-			// count <= 0;
-		// else 
-			// count <= count +1;
-	// end
-// endmodule
-
-	
-	
