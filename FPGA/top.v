@@ -7,8 +7,8 @@ module top (
 
 	input 		hw_clk,
 	input 		hw_reset,
-	input [3:0]	hw_KEY,
-	input 		hw_DIP_Switch3,
+	// input [3:0]	hw_KEY,
+	// input 		hw_DIP_Switch3,
 	// input 		hw_KEY0,
 	// input 		hw_KEY1,
 	// input 		hw_KEY2,
@@ -44,17 +44,41 @@ module top (
 	
 	// output [6:0] hw_SEG_out,
 	// output [2:0] hw_DIG_out,
-	// output hw_DIG_out0,
+	output hw_DIG_out0,
 	// output hw_DIG_out1,
 	
 	// input	[15:0]	test_word,
 	// input	[ 7:0]	test_byte,
+
+	output			hw_serial_out_ds1302, 		// SCLK
+	inout			hw_serial_io_ds1302, 		// DATA
+	output			hw_chip_enable_out_ds1302, 	// CE
 	
 	output [7:0] hw_LEDs
 );
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 
+	wire	ds1302_SCLK;
+	wire	ds1302_DATA;
+	wire	ds1302_CE;
+	
+	// reg ds_ce = 1'b0;
+
+	reg ds_trigger; 
+	
+	assign ds1302_CE = ds_trigger;
+	
+	assign	hw_serial_out_ds1302		= ds1302_SCLK;
+	// inout port
+	assign	hw_serial_io_ds1302			= ds1302_DATA;
+	assign	hw_chip_enable_out_ds1302	= ds1302_CE;
+	
+	reg	ds_clk;
+	reg	ds_clk_out;
+	
+	assign ds1302_SCLK = ds_clk_out;
+	
 	// ram
 	wire 		ram_clk	; // ,	// Clock
 	wire 		cke		; // ,	// Clock Enable
@@ -282,6 +306,80 @@ module top (
 		// end
 	// end
 
+	reg	[11:0]	ds_counter;
+
+	reg	[4:0]	ds_bitcount;
+	reg	[3:0]	ds_bitcount2;
+	reg ds_old; 
+	wire ds_databit; 
+	
+	reg [7:0] ds_data_byte = 8'b_1000_0001;
+	
+	localparam	BITS	= 8'd8 * 2;
+	
+	assign hw_DIG_out0 = ds_trigger;
+	
+	assign ds_databit = (ds_bitcount < 4'h8) ? ds_data_byte[ds_bitcount] : 8'hz;
+	
+	assign ds1302_DATA = ds_databit;
+	
+	always@(posedge clock or posedge reset) begin
+		if(reset) begin
+			ds_counter 		= 12'h0;
+			ds_clk			= 1'b0;
+			ds_clk_out		= 1'b0;
+			ds_bitcount		= 1'b0;
+			ds_bitcount2	= 1'b0;
+			ds_old			= 1'b0;
+			ds_trigger		= 1'b0;
+			// ds_databit		= 1'b0;
+		end
+		else begin
+			ds_old <= ds_clk;
+			
+			// detect neg. edge
+			if(~ds_clk && ds_old && ~ds_clk_out && ds_bitcount == 0) begin
+				ds_trigger 	<= 1'b1;
+				ds_bitcount <= 1'b0;
+				
+			end
+			
+			if(~ds_clk && ds_old) begin
+				if(ds_trigger && ~ds_clk_out) begin
+					ds_bitcount <= ds_bitcount + 1'b1;
+				end
+			end
+			
+			// detect pos. edge
+			if(ds_clk && ~ds_old) begin
+			
+				ds_clk_out	= ~ds_clk_out;
+			
+			end
+			
+			if(ds_bitcount2 == 4) begin
+				ds_bitcount 	<= 0;
+				ds_bitcount2	= 0;
+			end
+			
+			if(ds_counter == (((1000 / 40)/2)) ) begin
+				ds_counter 	= 12'h0;
+				ds_clk		= ~ds_clk;
+				
+			
+				if(ds_bitcount == BITS) begin
+					ds_bitcount2 = ds_bitcount2 +1;
+					ds_trigger <= 0;
+				end
+				
+			end
+			else
+				ds_counter	= ds_counter + 1'd1;
+		end
+		// ds_clk
+	end
+	
+
 	assign reset	= !locked;
 
 	// CL3 : 143 Mhz !!!
@@ -377,31 +475,31 @@ module top (
 	// assign enable = (hw_DIP_Switch3) ? 1'b1 : ~w_refresh;
 `endif
 
-	T65 cpu1(
-		// .Enable 		(1'b1),				//	=> '1',
-		.Enable 		(cpuen),			//	=> '1',
-		.Mode 			(2'b00),			//	=> "00",
-		.Res_n 			(ram_init_ready),	//	=> n_reset,
-		.Clk 			(clock),		//	=> cpuClock,
-		.Rdy 			(1'b1),				//	=> '1',
-		.Abort_n 		(1'b1),				//	=> '1',
-		.IRQ_n 			(1'b1),				//	=> '1',
-		.SO_n 			(1'b1),				//	=> '1',
+	// T65 cpu1(
+		// // .Enable 		(1'b1),				//	=> '1',
+		// .Enable 		(cpuen),			//	=> '1',
+		// .Mode 			(2'b00),			//	=> "00",
+		// .Res_n 			(ram_init_ready),	//	=> n_reset,
+		// .Clk 			(clock),		//	=> cpuClock,
+		// .Rdy 			(1'b1),				//	=> '1',
+		// .Abort_n 		(1'b1),				//	=> '1',
+		// .IRQ_n 			(1'b1),				//	=> '1',
+		// .SO_n 			(1'b1),				//	=> '1',
 		
-// `define NMI
-`ifdef NMI		
-		.NMI_n 			(w_refresh),		//	=> '1',
-`else		
-		.NMI_n 			(1'b1),		//	=> '1',
-`endif		
-`ifdef MODEL_TECH		
-		.Regs			(w_regs),
-`endif
-		.R_W_n 			(cpu_we_n),			//	=> n_WR,
-		.addr			(address_bus),		//	=> cpuAddress,
-		.DI 			(data_to_cpu),		//	=> cpuDataIn,
-		.DO 			(data_from_cpu)		//	=> cpuDataOut
-	);
+// // `define NMI
+// `ifdef NMI		
+		// .NMI_n 			(w_refresh),		//	=> '1',
+// `else		
+		// .NMI_n 			(1'b1),		//	=> '1',
+// `endif		
+// `ifdef MODEL_TECH		
+		// .Regs			(w_regs),
+// `endif
+		// .R_W_n 			(cpu_we_n),			//	=> n_WR,
+		// .addr			(address_bus),		//	=> cpuAddress,
+		// .DI 			(data_to_cpu),		//	=> cpuDataIn,
+		// .DO 			(data_from_cpu)		//	=> cpuDataOut
+	// );
 
 	refresh refresh_i (
 		.clk(clock),
