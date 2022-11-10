@@ -47,14 +47,14 @@ module top (
 
 	// ds 1302
 	wire	ds1302_SCLK;
-	wire	ds1302_DATA;
+	// wire	ds1302_DATA;
 	wire	ds1302_CE;
-	reg 	ds_trigger; 
-	reg		ds_clk;
-	reg		ds_clk_out;
+
+	wire	ds_trigger;
+	wire	ds_clk_out;
 	
 	assign	hw_serial_out_ds1302		= ds1302_SCLK;
-	assign	hw_serial_io_ds1302			= ds1302_DATA;
+	// assign	hw_serial_io_ds1302			= ds1302_DATA;
 	assign	hw_chip_enable_out_ds1302	= ds1302_CE;
 	assign 	ds1302_CE 					= ds_trigger;
 	assign 	ds1302_SCLK 				= ds_clk_out;
@@ -268,74 +268,12 @@ module top (
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 
-	reg 		ds_Rw;
-	reg	[11:0]	ds_counter;
-	reg	[4:0]	ds_bitcount;
-	reg	[3:0]	ds_bitcount2;
-	reg [7:0] ds_data_byte = 8'b_1000_0001;
-	reg 		ds_old; 
-	wire 		ds_databit; 
-	
-	localparam	BITS	= 8'd8 * 2;
-	
-	assign hw_DIG_out0 	= ds_trigger;
-	assign ds_databit 	= (ds_bitcount < 4'h8) ? ds_data_byte[ds_bitcount] : 8'hz;
-	assign ds1302_DATA 	= ds_databit;
-	
-	always@(posedge clock or posedge reset) begin
-		if(reset) begin
-			ds_counter 		= 12'h0;
-			ds_clk			= 1'b0;
-			ds_clk_out		= 1'b0;
-			ds_bitcount		= 1'b0;
-			ds_bitcount2	= 1'b0;
-			ds_old			= 1'b0;
-			ds_trigger		= 1'b0;
-		end
-		else begin
-			ds_old <= ds_clk;
-			
-			// detect neg. edge
-			if(~ds_clk && ds_old && ~ds_clk_out && ds_bitcount == 0) begin
-				ds_trigger 	<= 1'b1;
-				ds_bitcount <= 1'b0;
-				
-			end
-			
-			if(~ds_clk && ds_old) begin
-				if(ds_trigger && ~ds_clk_out) begin
-					ds_bitcount <= ds_bitcount + 1'b1;
-				end
-			end
-			
-			// detect pos. edge
-			if(ds_clk && ~ds_old) begin
-				ds_clk_out	= ~ds_clk_out;
-			end
-			
-			if(ds_bitcount2 == 4) begin
-				ds_bitcount 	<= 0;
-				ds_bitcount2	= 0;
-			end
-			
-			if(ds_counter == (((1000 / 40)/2)) ) begin
-				ds_counter 	= 12'h0;
-				ds_clk		= ~ds_clk;
-			
-				if(ds_bitcount == BITS) begin
-					ds_bitcount2 = ds_bitcount2 +1;
-					ds_trigger <= 0;
-				end
-				
-			end
-			else
-				ds_counter	= ds_counter + 1'd1;
-		end
-	end
-
 	// Reset
 	assign reset	= !locked;
 
+	// ------------------------------------------------------------------------
+	// --- pll ----------------------------------------------------------------
+	// ------------------------------------------------------------------------
 	// CL3 : 143 Mhz !!!
 	// CL2 : 100 Mhz !!!	<--- now
 	pll_133 pll_100MHz_cl2 (
@@ -377,8 +315,6 @@ module top (
 		
 		cpu_count = cpu_count + 1'b1;
 	end
-
-
 	
 `ifdef MODEL_TECH
 	wire [7:0] w_reg_a;
@@ -402,6 +338,9 @@ module top (
 	// assign enable = (hw_DIP_Switch3) ? 1'b1 : ~w_refresh;
 `endif
 
+	// ------------------------------------------------------------------------
+	// --- CPU ----------------------------------------------------------------
+	// ------------------------------------------------------------------------
 	T65 cpu1(
 		// .Enable 		(1'b1),				//	=> '1',
 		.Enable 		(cpuen),			//	=> '1',
@@ -428,37 +367,20 @@ module top (
 		.DO 			(data_from_cpu)		//	=> cpuDataOut
 	);
 
-	refresh refresh_i (
-		.clk(clock),
-		.reset(reset),
-		.q(w_refresh)
-	);
+	// ------------------------------------------------------------------------
+	// --- NMI refresh
+	// ------------------------------------------------------------------------
+	// refresh refresh_i (
+		// .clk(clock),
+		// .reset(reset),
+		// .q(w_refresh)
+	// );
 	
 	wire	selector_rom;
 	wire	selector_ram_ext;
 	wire	selector_ram_int;
 	wire	selector_uart;
-
-	
-`ifdef MODEL_TECH
-	wire 	[3:0]	select;
-	
-	assign select = { selector_uart, selector_ram_ext, selector_ram_int, selector_rom };
-/*
- * easy to read names in simulator output
- */
-reg [8*6-1:0] select_memory;
-
-always @*
-    case( select ) 
-		4'b0001 : select_memory = "ROM";
-		4'b0010 : select_memory = "INT";
-		4'b0100 : select_memory = "EXT";
-		4'b1000 : select_memory = "UART";
-		default: select_memory = "XXX";
-	endcase
-	
-`endif		
+	wire	selector_ds1302;
 
 	// ------------------------------------------------------------------------
 	// --- SELECCTOR RAM / ROM
@@ -469,8 +391,28 @@ always @*
 		.rom(selector_rom),
 		.ram_int(selector_ram_int),
 		.uart(selector_uart),
+		.ds1302(selector_ds1302),
 		.ram(selector_ram_ext)
 	);
+	
+`ifdef MODEL_TECH
+	wire 	[3:0]	select;
+	
+	assign select = { selector_uart, selector_ram_ext, selector_ram_int, selector_rom };
+/*
+ * easy to read names in simulator output
+ */
+	reg [8*6-1:0] select_memory;
+
+always @*
+    case( select ) 
+		4'b0001 : select_memory = "ROM";
+		4'b0010 : select_memory = "INT";
+		4'b0100 : select_memory = "EXT";
+		4'b1000 : select_memory = "UART";
+		default: select_memory = "XXX";
+	endcase
+`endif		
 
 	wire [7:0] data_from_rom;
 	
@@ -536,6 +478,9 @@ always @*
 	reg [15:0] 	serialClkCount;
 	
 	assign serialClock = serialClkCount[15];
+	// ------------------------------------------------------------------------
+	// --- serialClock --------------------------------------------------------
+	// ------------------------------------------------------------------------
 	always@(posedge clock or posedge reset) begin
 		if(reset)
 			serialClkCount <= 16'd0;
@@ -582,12 +527,19 @@ always @*
 	);
 
 	wire [7:0] data_from_ram;
+	wire [7:0] data_from_ds3102;
+
+	wire	[7:0] ds1302_status;
+	
+	assign ds1302_status = { 7'b_0000_000, ds_trigger };
 
 //`define SIM_RAM
 `ifdef SIM_RAM
 	assign data_to_cpu = data_from_ram;
 `else
 	assign data_to_cpu = 
+	(address_bus == 16'hffef)	? 	ds1302_status:
+		selector_ds1302		? 	data_from_ds3102 : 
 		selector_uart		? 	data_from_uart : 
 		selector_rom		? 	data_from_rom : 
 		selector_ram_int	? 	ram_intern_out : 
@@ -633,18 +585,183 @@ always @*
 		.n_WE	(rw_n_WE),	// Write Enable
 		.addr	(addr_rw),
 		// .DQ(DQ)
-`ifdef MODEL_TECH
-		.DQ(w_sd_data)
-`else		
-		.DQ(hw_sdData_io)
-`endif		
+		`ifdef MODEL_TECH
+				.DQ(w_sd_data)
+		`else		
+				.DQ(hw_sdData_io)
+		`endif		
 	);
 
+	assign 	ds1302_CE 					= ds_trigger;
+	assign 	ds1302_SCLK 				= ds_clk_out;
+
+	// wire ds_Rw;
+	// assign ds_Rw = 
+
+	// ------------------------------------------------------------------------
+	// --- ds1302 -------------------------------------------------------------
+	// ------------------------------------------------------------------------
+	ds1302 ds1302_i (
+		.clk		(clock),
+		.reset		(reset),
+		.en			(selector_ds1302 && ~(address_bus == 16'hffef)),
+		.Rw			(cpu_we_n),
+		.clk_out	(ds_clk_out),
+		.addr		(address_bus[7:0]),		// ds1302 addr: 
+		.data_in	(data_from_cpu),
+		.data_out   (data_from_ds3102),
+		// hw
+		.trigger	(ds_trigger),
+		.ds1302_DATA(hw_serial_io_ds1302)
+	);
 	
-endmodule
+endmodule	// top
 
 // ----------------------------------------------------------------------------
-// --- refresh ----------------------------------------------------------------
+// --- module: ds1302 ---------------------------------------------------------
+// ----------------------------------------------------------------------------
+module ds1302 (
+	input	clk,
+	input	reset,
+	input	en,
+	input	Rw,
+	
+	input	[7:0]	addr,		// ds1302 addr: 
+	input	[7:0]	data_in,
+	output	[7:0]	data_out,
+	
+	output	trigger,
+	output	clk_out,
+	inout	ds1302_DATA
+);
+
+	wire clock;
+	
+	assign clock	= clk;
+	
+	// reg [7:0] 	ds_data_byte = 8'b_1000_0001;
+	reg [7:0] 	ds_data_byte;
+	
+	
+	reg [7:0] 	ds_data_byte_out;
+	reg [7:0] 	ds_addr_byte;
+	// assign 	ds_data_byte	= data_in;
+	
+	reg 		ds_trigger; 
+	reg			ds_clk;
+	reg			ds_clk_out;
+	reg 		ds_Rw;
+	reg	[11:0]	ds_counter;
+	reg	[4:0]	ds_bitcount;
+	wire	[2:0]	ds_bitcount_mask;
+	reg	[3:0]	ds_bitcount2;
+	reg 		ds_old; 
+	// wire 		ds_databit; 
+	
+	reg 		ds_trigger_in;
+	reg 		tr_in_old;
+	
+	// DATA OUT
+	assign data_out = (~ds_trigger && Rw) ? ds_data_byte_out : 8'hz;
+	
+	assign ds_bitcount_mask = ds_bitcount[2:0];
+	
+	assign trigger = ds_trigger;
+	assign clk_out = ds_clk_out;
+
+	// new trigger at request from enable
+	always@(posedge clk) begin
+		if(reset) begin
+				ds_data_byte	<= 8'hzz;
+		end
+		else begin
+			tr_in_old	<= en;
+			if(en && ~tr_in_old) begin
+				ds_trigger 		<= 1'b1;
+				if(~Rw)
+					ds_data_byte	<= data_in;
+				else
+					ds_data_byte	<= 8'hz;
+				ds_addr_byte	<= { 1'b1, 3'b0, addr[2:0], Rw };
+				ds_Rw			<= Rw;
+			end
+		end
+	end
+
+	localparam	BITS	= 8'd8 * 2;
+	
+	// wire	ds_bit_out	= (ds_bitcount < 4'h8) ? ds_data_byte[ds_bitcount] : 8'hz;
+	assign ds1302_DATA 	= 
+		(ds_bitcount < 4'd8 ) ? ds_addr_byte[ds_bitcount_mask] : 
+		(ds_bitcount < 5'd16) ? ds_data_byte[ds_bitcount_mask] :
+		1'h0;
+	
+	
+	// assign ds_databit 	= (ds_bitcount < 4'h8) ? ds_data_byte[ds_bitcount] : 8'hz;
+	// assign ds1302_DATA 	= ds_databit;
+	
+	always@(posedge clock or posedge reset) begin
+		if(reset) begin
+			ds_counter 		= 12'h0;
+			ds_clk			= 1'b0;
+			ds_clk_out		= 1'b0;
+			ds_bitcount		= 1'b0;
+			ds_bitcount2	= 1'b0;
+			ds_old			= 1'b0;
+			ds_trigger		= 1'b0;
+		end
+		else begin
+			ds_old <= ds_clk;
+			
+			// detect neg. edge for trigger
+			if(~ds_clk && ds_old && ~ds_clk_out && ds_bitcount == 0) begin
+				// if(en)
+					// ds_trigger 	<= 1'b1;
+				ds_bitcount <= 1'b0;
+			end
+			
+			// detect neg. edge for bitcount
+			if(~ds_clk && ds_old) begin
+				if(ds_trigger && ~ds_clk_out) begin
+					ds_bitcount <= ds_bitcount + 1'b1;
+				end
+			end
+			
+			// detect pos. edge
+			if(ds_clk && ~ds_old) begin
+				ds_clk_out	= ~ds_clk_out;
+				
+				if( (ds_bitcount > 7) && ds_Rw && ds_trigger) begin
+					ds_data_byte_out[ds_bitcount_mask]	= ds1302_DATA;
+				end
+				
+			end
+
+			// 4 clk pause
+			if(ds_bitcount2 == 4) begin
+				ds_bitcount 	<= 0;
+				ds_bitcount2	= 0;
+			end
+			
+			// clock divider
+			if(ds_counter == (((1000 / 40)/2)) ) begin
+				ds_counter 	= 12'h0;
+				ds_clk		= ~ds_clk;
+			
+				if(ds_bitcount == BITS) begin
+					ds_bitcount2 = ds_bitcount2 +1;
+					ds_trigger <= 0;
+				end
+				
+			end
+			else
+				ds_counter	= ds_counter + 1'd1;
+		end
+	end
+endmodule	// ds1302
+
+// ----------------------------------------------------------------------------
+// --- module: refresh --------------------------------------------------------
 // ----------------------------------------------------------------------------
 module refresh (
 	input clk,
@@ -799,6 +916,9 @@ module sdram_read_write (
 	
 	wire [3:0] w_mode1;
 	
+	// ------------------------------------------------------------------------
+	// --- Mode select -------------------------------------------------------
+	// ------------------------------------------------------------------------
 	// TODO: output ctrl lines only when ext ist select
 	mode_sel mode_sel_i (
 		.d	(count1),
@@ -952,13 +1072,15 @@ module ram_rom_select (
 	output	rom,
 	output	ram_int,
 	output	uart,
+	output	ds1302,
 	output	ram
 );
 
-	assign uart		= (   addr[15:1 ] == 15'b_1111_1111_1101_000 ) ? 1'b1 : 1'b0;
+	assign uart		= (   addr[15:1 ] == 15'b_1111_1111_1101_000 ) ? 1'b1 : 1'b0;	// FFD0_FFD1	UART
+	assign ds1302	= (   addr[15:4 ] == 15'b_1111_1111_1110	 ) ? 1'b1 : 1'b0;	// FFE0-FFEF	ds1302
 	assign rom 		= ( ((addr[15:12] == 4'hf) || (addr[15:12] == 4'he)) && ~uart) ? 1'b1 : 1'b0;
 	assign ram_int 	= ( ( addr[15:12] == 4'h0) ) ? 1'b1 : 1'b0;
-	assign ram 		= ~rom && ~ram_int && ~uart;
+	assign ram 		= ~rom && ~ram_int && ~uart && ~ds1302;
 endmodule
 
 // ----------------------------------------------------------------------------
