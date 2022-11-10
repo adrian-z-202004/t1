@@ -40,6 +40,8 @@ module top (
 	inout			hw_serial_io_ds1302, 		// DATA
 	output			hw_chip_enable_out_ds1302, 	// CE
 	
+	output			Q2, 	// CE
+	
 	output [7:0] hw_LEDs
 );
 // ----------------------------------------------------------------------------
@@ -47,7 +49,6 @@ module top (
 
 	// ds 1302
 	wire	ds1302_SCLK;
-	// wire	ds1302_DATA;
 	wire	ds1302_CE;
 
 	wire	ds_trigger;
@@ -56,6 +57,8 @@ module top (
 	assign	hw_serial_out_ds1302		= ds1302_SCLK;
 	// assign	hw_serial_io_ds1302			= ds1302_DATA;
 	assign	hw_chip_enable_out_ds1302	= ds1302_CE;
+	// assign hw_chip_enable_out_ds1302 = 1'b0;	// off
+	// assign	Q2	= ds1302_CE;
 	assign 	ds1302_CE 					= ds_trigger;
 	assign 	ds1302_SCLK 				= ds_clk_out;
 	
@@ -647,6 +650,7 @@ module ds1302 (
 	reg [7:0] 	ds_addr_byte;
 	// assign 	ds_data_byte	= data_in;
 	
+	reg 		del_trigger; 
 	reg 		ds_trigger; 
 	reg			ds_clk;
 	reg			ds_clk_out;
@@ -669,36 +673,34 @@ module ds1302 (
 	assign trigger = ds_trigger;
 	assign clk_out = ds_clk_out;
 
-	// new trigger at request from enable
-	always@(posedge clk) begin
-		if(reset) begin
-				ds_data_byte	<= 8'hzz;
-		end
-		else begin
-			tr_in_old	<= en;
-			if(en && ~tr_in_old) begin
-				ds_trigger 		<= 1'b1;
-				if(~Rw)
-					ds_data_byte	<= data_in;
-				else
-					ds_data_byte	<= 8'hz;
-				ds_addr_byte	<= { 1'b1, 3'b0, addr[2:0], Rw };
-				ds_Rw			<= Rw;
-			end
-		end
-	end
+	// always@(posedge clk) begin
+		// if(reset) begin
+		// end
+		// else begin
+		// end
+	// end
 
 	localparam	BITS	= 8'd8 * 2;
 	
+	
+	wire tmp_data = (ds_bitcount < 5'd16) ? ds_data_byte[ds_bitcount_mask] : 8'bz;
+	
 	// wire	ds_bit_out	= (ds_bitcount < 4'h8) ? ds_data_byte[ds_bitcount] : 8'hz;
 	assign ds1302_DATA 	= 
-		(ds_bitcount < 4'd8 ) ? ds_addr_byte[ds_bitcount_mask] : 
-		(ds_bitcount < 5'd16) ? ds_data_byte[ds_bitcount_mask] :
-		1'h0;
+		// (ds_bitcount < 4'd8 ) ? ds_addr_byte[ds_bitcount_mask] : 
+		(ds_bitcount < 4'd8 ) ? ds_addr_byte[ds_bitcount[2:0]] : 
+		// (ds_bitcount < 5'd16) ? ds_data_byte[ds_bitcount_mask] :
+		// (Rw) ? ds_data_byte[ds_bitcount_mask] :
+		(~ds_Rw) ? tmp_data :
+		1'hz;
+	
+	
 	
 	
 	// assign ds_databit 	= (ds_bitcount < 4'h8) ? ds_data_byte[ds_bitcount] : 8'hz;
 	// assign ds1302_DATA 	= ds_databit;
+	
+	reg [3:0] tr_count;
 	
 	always@(posedge clock or posedge reset) begin
 		if(reset) begin
@@ -709,15 +711,48 @@ module ds1302 (
 			ds_bitcount2	= 1'b0;
 			ds_old			= 1'b0;
 			ds_trigger		= 1'b0;
+			tr_count		= 4'b0000;
+			del_trigger		= 1'b0;
+			ds_data_byte	<= 8'hzz;
 		end
 		else begin
 			ds_old <= ds_clk;
+
+			if(del_trigger) begin
+				tr_count <= tr_count +1'd1;
+			end
+
+			// if(del_trigger && tr_count == 4'b1111) begin
+			if(del_trigger) begin
+				if(~ds_clk_out && ds_counter == 6) begin
+					ds_bitcount 	<= 1'b0;
+					tr_count 		<= 4'b0000;
+					ds_addr_byte[0] <= ds_Rw;
+				end
+			end
+
+			// new trigger at request from enable
+			tr_in_old	<= en;
+			if(en && ~tr_in_old) begin
+					ds_addr_byte	<= { 1'b1, 3'b000, addr[2:0], ds_Rw };
+				// ds_trigger 		<= 1'b1;
+				del_trigger 		<= 1'b1;
+				ds_Rw				<= Rw;
+				if(~Rw)
+					ds_data_byte	<= data_in;
+				else
+					ds_data_byte	<= 8'hz;
+			end
+
 			
 			// detect neg. edge for trigger
-			if(~ds_clk && ds_old && ~ds_clk_out && ds_bitcount == 0) begin
+			// if(~ds_clk && ds_old && ~ds_clk_out && ds_bitcount == 0) begin
+			if(~ds_clk && ds_old && ~ds_clk_out && del_trigger) begin
+					ds_trigger 		<= 1;
+					del_trigger 	<= 0;
 				// if(en)
 					// ds_trigger 	<= 1'b1;
-				ds_bitcount <= 1'b0;
+				// ds_bitcount <= 1'b0;
 			end
 			
 			// detect neg. edge for bitcount
@@ -732,7 +767,7 @@ module ds1302 (
 				ds_clk_out	= ~ds_clk_out;
 				
 				if( (ds_bitcount > 7) && ds_Rw && ds_trigger) begin
-					ds_data_byte_out[ds_bitcount_mask]	= ds1302_DATA;
+					ds_data_byte_out[ds_bitcount_mask]	<= ds1302_DATA;
 				end
 				
 			end
