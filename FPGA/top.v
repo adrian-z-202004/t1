@@ -1,5 +1,5 @@
 
-`timescale 10ns/1ns
+`timescale 1ns/100ps
 
 // ----------------------------------------------------------------------------
 // --- top --------------------------------------------------------------------
@@ -149,7 +149,7 @@ module top (
 	assign clock = r_clock;
 	
 	always
-		#1 r_clock = !r_clock;
+		#10 r_clock = !r_clock;
 	
 	initial begin
 		#0 		r_hw_KEY0 = 0;
@@ -240,7 +240,7 @@ module top (
 	// // #0 r_rx_in = 1;
 	#0 r_test_word = 16'h00;
 	
-	#10	r_reset = 0;
+	#100	r_reset = 0;
 	// #200 r_test_word = 16'h1234;
 		// // #10 r_send  = 1;
 		// // #10 r_rx_in	= 0;
@@ -399,9 +399,9 @@ module top (
 	);
 	
 `ifdef MODEL_TECH
-	wire 	[3:0]	select;
+	wire 	[4:0]	select;
 	
-	assign select = { selector_uart, selector_ram_ext, selector_ram_int, selector_rom };
+	assign select = { selector_ds1302, selector_uart, selector_ram_ext, selector_ram_int, selector_rom };
 /*
  * easy to read names in simulator output
  */
@@ -409,10 +409,11 @@ module top (
 
 always @*
     case( select ) 
-		4'b0001 : select_memory = "ROM";
-		4'b0010 : select_memory = "INT";
-		4'b0100 : select_memory = "EXT";
-		4'b1000 : select_memory = "UART";
+		5'b00001 : select_memory = "ROM";
+		5'b00010 : select_memory = "INT";
+		5'b00100 : select_memory = "EXT";
+		5'b01000 : select_memory = "UART";
+		5'b10000 : select_memory = "1302";
 		default: select_memory = "XXX";
 	endcase
 `endif		
@@ -534,7 +535,9 @@ always @*
 
 	wire	[7:0] ds1302_status;
 	
-	assign ds1302_status = { 7'b_0000_000, ds_trigger };
+	wire	ds_new_byte;
+	
+	assign ds1302_status = { 6'b_0000_00, ds_new_byte, ds_trigger };
 
 //`define SIM_RAM
 `ifdef SIM_RAM
@@ -604,6 +607,17 @@ always @*
 	// ------------------------------------------------------------------------
 	// --- ds1302 -------------------------------------------------------------
 	// ------------------------------------------------------------------------
+	`ifdef MODEL_TECH
+	
+		reg		deb_data_for_ds1302;
+		
+		initial begin
+			#0		deb_data_for_ds1302 = 1'bz; 
+			#13190	deb_data_for_ds1302 = 1'b1; 
+			#6760	deb_data_for_ds1302 = 1'b0; 
+		end
+	`endif
+	
 	ds1302 ds1302_i (
 		.clk		(clock),
 		.reset		(reset),
@@ -615,8 +629,11 @@ always @*
 		.data_out   (data_from_ds3102),
 		// hw
 		.trigger	(ds_trigger),
+		.new_byte	(ds_new_byte),
+		.ds1302_DATA_deb(deb_data_for_ds1302),
 		.ds1302_DATA(hw_serial_io_ds1302)
 	);
+	
 	
 endmodule	// top
 
@@ -634,7 +651,9 @@ module ds1302 (
 	output	[7:0]	data_out,
 	
 	output	trigger,
+	output	reg new_byte,
 	output	clk_out,
+	input	ds1302_DATA_deb,
 	inout	ds1302_DATA
 );
 
@@ -652,6 +671,7 @@ module ds1302 (
 	
 	reg 		del_trigger; 
 	reg 		ds_trigger; 
+	// reg 		new_byte; 
 	reg			ds_clk;
 	reg			ds_clk_out;
 	reg 		ds_Rw;
@@ -666,7 +686,7 @@ module ds1302 (
 	reg 		tr_in_old;
 	
 	// DATA OUT
-	assign data_out = (~ds_trigger && Rw) ? ds_data_byte_out : 8'hz;
+	assign data_out = (~ds_trigger && ds_Rw) ? ds_data_byte_out : 8'hz;
 	
 	assign ds_bitcount_mask = ds_bitcount[2:0];
 	
@@ -693,9 +713,12 @@ module ds1302 (
 		// (Rw) ? ds_data_byte[ds_bitcount_mask] :
 		(~ds_Rw) ? tmp_data :
 		1'hz;
-	
-	
-	
+		
+	wire ds1302_Rw;	// Debug Wire
+	assign ds1302_Rw 	= 
+		(ds_bitcount < 4'd8 ) ? 1'b1 : 
+		(~ds_Rw) ? 1'bz :
+		1'h0;
 	
 	// assign ds_databit 	= (ds_bitcount < 4'h8) ? ds_data_byte[ds_bitcount] : 8'hz;
 	// assign ds1302_DATA 	= ds_databit;
@@ -713,7 +736,10 @@ module ds1302 (
 			ds_trigger		= 1'b0;
 			tr_count		= 4'b0000;
 			del_trigger		= 1'b0;
+			new_byte		= 1'b0;
+			ds_Rw			= 1'b1;
 			ds_data_byte	<= 8'hzz;
+			ds_data_byte_out	<= 8'hzz;
 		end
 		else begin
 			ds_old <= ds_clk;
@@ -736,7 +762,12 @@ module ds1302 (
 			if(en && ~tr_in_old) begin
 					ds_addr_byte	<= { 1'b1, 3'b000, addr[2:0], ds_Rw };
 				// ds_trigger 		<= 1'b1;
-				del_trigger 		<= 1'b1;
+				if(~new_byte)
+					del_trigger 		<= 1'b1;
+				else begin
+					// del_trigger 		<= 1'b1;
+					new_byte		<= 1'b0;
+				end
 				ds_Rw				<= Rw;
 				if(~Rw)
 					ds_data_byte	<= data_in;
@@ -768,6 +799,7 @@ module ds1302 (
 				
 				if( (ds_bitcount > 7) && ds_Rw && ds_trigger) begin
 					ds_data_byte_out[ds_bitcount_mask]	<= ds1302_DATA;
+					// ds_data_byte_out[ds_bitcount_mask]	<= ds1302_DATA_deb;
 				end
 				
 			end
@@ -785,7 +817,10 @@ module ds1302 (
 			
 				if(ds_bitcount == BITS) begin
 					ds_bitcount2 = ds_bitcount2 +1;
+					if(ds_Rw)
+						new_byte	<= 1'b1;
 					ds_trigger <= 0;
+					
 				end
 				
 			end
@@ -1113,7 +1148,7 @@ module ram_rom_select (
 
 	assign uart		= (   addr[15:1 ] == 15'b_1111_1111_1101_000 ) ? 1'b1 : 1'b0;	// FFD0_FFD1	UART
 	assign ds1302	= (   addr[15:4 ] == 15'b_1111_1111_1110	 ) ? 1'b1 : 1'b0;	// FFE0-FFEF	ds1302
-	assign rom 		= ( ((addr[15:12] == 4'hf) || (addr[15:12] == 4'he)) && ~uart) ? 1'b1 : 1'b0;
+	assign rom 		= ( ((addr[15:12] == 4'hf) || (addr[15:12] == 4'he)) && ~uart && ~ds1302) ? 1'b1 : 1'b0;
 	assign ram_int 	= ( ( addr[15:12] == 4'h0) ) ? 1'b1 : 1'b0;
 	assign ram 		= ~rom && ~ram_int && ~uart && ~ds1302;
 endmodule
